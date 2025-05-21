@@ -91,7 +91,7 @@ if mp4_path.exists():
         height=0,
     )
 
-    st.caption("Press **P** anywhere to play / pause (works even after clicking a label).")
+    st.caption("Press **P** anywhere to play / pause.")
 else:
     audio, sr = sf.read(wav_path, dtype="float32")
     st.audio(audio, format="audio/wav", sample_rate=sr)
