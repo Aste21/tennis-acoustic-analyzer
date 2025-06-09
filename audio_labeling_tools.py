@@ -149,7 +149,6 @@ def cmd_slice(args: argparse.Namespace) -> None:
     # ── slice around peaks ───────────────────────────────────────────────
     pre  = int(args.pre_ms  * sr / 1000)
     post = int(args.post_ms * sr / 1000)
-    duration_sec = (pre + post) / sr
 
     csv_rows = []
     video_src = Path(args.video) if (args.export_video and args.video) else None
@@ -159,6 +158,8 @@ def cmd_slice(args: argparse.Namespace) -> None:
         start = max(p - pre, 0)
         end   = min(p + post, len(y))
         clip  = y[start:end]
+
+        clip_duration_sec = (end - start) / sr
 
         wav_name = f"clip_{idx:05d}.wav"
         sf.write(out_dir / wav_name, clip, sr)
@@ -171,7 +172,7 @@ def cmd_slice(args: argparse.Namespace) -> None:
                 src=video_src,
                 dst=out_dir / video_name,
                 start_sec=clip_start_sec,
-                duration_sec=duration_sec,
+                duration_sec=clip_duration_sec,
                 codec=args.video_codec,
                 scale=args.scale,
             )
