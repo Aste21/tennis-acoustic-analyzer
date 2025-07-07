@@ -15,3 +15,12 @@ for later:
 4. What to do with foot hitting the ground? sound like ball being hit but is something much different.
 5. Maybe yell/grunt should be also added.
 6. In POC, interviews are also as a commentator coze of similarity
+## Audio inference
+
+After training the acoustic classifier, place the weights at `models/acoustic_classifier.pth`. You can detect events in a WAV file using:
+
+```bash
+python audio_inference.py --audio path/to/file.wav --output detections.json
+```
+
+The script outputs a JSON file with timestamps and predicted labels for each detected sound event.
