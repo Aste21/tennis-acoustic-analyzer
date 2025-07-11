@@ -46,8 +46,8 @@ def predict_hits(audio_path: Path, model_path: Path) -> list[float]:
 def process_video(video_path: Path, models_dir: Path):
     frames, fps = read_video(video_path)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    ball = BallDetector(models_dir / "ball_track_model.pth", device)
-    court = CourtDetectorNet(models_dir / "court_model.pth", device)
+    ball = BallDetector(models_dir / "ball_track_model.pt", device)
+    court = CourtDetectorNet(models_dir / "court_model.pt", device)
     bounce = BounceDetector(models_dir / "bounce_model.cbm")
     persons = PersonDetector(device=device)
 
