@@ -9,7 +9,7 @@ import torch
 from tqdm import tqdm
 
 from audio_labeling_tools import run_ffmpeg_extract, detect_onsets
-from acoustic_model import load_acoustic_model
+from acoustic_model import load_acoustic_model, MAX_T
 
 # video processing modules
 from video_models.ball_detector import BallDetector
@@ -28,8 +28,21 @@ def predict_hits(audio_path: Path, model_path: Path) -> list[float]:
         start = max(0, s - int(pre_ms*sr/1000))
         end = min(len(y), s + int(post_ms*sr/1000))
         clip = y[start:end]
-        mfcc = librosa.feature.mfcc(y=clip, sr=sr, n_mfcc=20)
-        x = torch.tensor(mfcc).unsqueeze(0).unsqueeze(0).float()
+        feat = librosa.feature.mfcc(
+            y=clip,
+            sr=sr,
+            n_mfcc=25,
+            n_fft=int(sr * 0.02),
+            hop_length=int(sr * 0.02),
+        )
+        d1 = librosa.feature.delta(feat, order=1)
+        d2 = librosa.feature.delta(feat, order=2)
+        feat = np.vstack([feat, d1, d2])  # shape (75, T)
+        feat = feat[:, :MAX_T]
+        if feat.shape[1] < MAX_T:
+            pad = np.zeros((feat.shape[0], MAX_T - feat.shape[1]))
+            feat = np.hstack([feat, pad])
+        x = torch.tensor(feat).unsqueeze(0).unsqueeze(0).float()
         with torch.no_grad():
             prob = torch.softmax(model(x), dim=1)[0, 0].item()
         if prob > 0.5:
