@@ -9,19 +9,13 @@ import torch
 from tqdm import tqdm
 
 from audio_labeling_tools import run_ffmpeg_extract, detect_onsets
+from acoustic_model import load_acoustic_model
 
 # video processing modules
 from video_models.ball_detector import BallDetector
 from video_models.court_detection_net import CourtDetectorNet
 from video_models.person_detector import PersonDetector
 from video_models.bounce_detector import BounceDetector
-
-
-def load_acoustic_model(path: Path):
-    model = torch.load(path, map_location="cpu")
-    model.eval()
-    return model
-
 
 def predict_hits(audio_path: Path, model_path: Path) -> list[float]:
     y, sr = librosa.load(str(audio_path), sr=48_000, mono=True)
