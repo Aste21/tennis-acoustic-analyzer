@@ -31,7 +31,7 @@ def predict_hits(audio_path: Path, model_path: Path) -> list[float]:
         mfcc = librosa.feature.mfcc(y=clip, sr=sr, n_mfcc=20)
         x = torch.tensor(mfcc).unsqueeze(0).unsqueeze(0).float()
         with torch.no_grad():
-            prob = torch.sigmoid(model(x)).item()
+            prob = torch.softmax(model(x), dim=1)[0, 0].item()
         if prob > 0.5:
             hits.append(start/sr)
     return hits

@@ -31,11 +31,22 @@ class FourClassNet(nn.Module):
 
 
 def load_acoustic_model(path: Path) -> nn.Module:
-    state = torch.load(path, map_location="cpu")
-    if isinstance(state, dict) and not hasattr(state, "eval"):
+    """Load the acoustic classifier and ensure a model instance is returned."""
+    obj = torch.load(path, map_location="cpu")
+
+    if isinstance(obj, nn.Module):
+        model = obj
+    elif isinstance(obj, dict):
+        if "state_dict" in obj:
+            state = obj["state_dict"]
+        elif "model_state_dict" in obj:
+            state = obj["model_state_dict"]
+        else:
+            state = obj
         model = FourClassNet()
         model.load_state_dict(state)
     else:
-        model = state
+        raise TypeError(f"Unsupported model format: {type(obj)}")
+
     model.eval()
     return model
