@@ -6,7 +6,7 @@ audio_labeling_tools.py — prepare audio (and optional video) clips
 * slice   : detect peaks/onsets, cut fixed-length WAV (and MP4) clips,
             and write a CSV ready for labelling.
 
-run quick_prepare.ps1 for easy launch of the application. 
+run quick_prepare.ps1 for easy launch of the application.
 """
 
 from __future__ import annotations
@@ -21,18 +21,36 @@ import librosa
 import numpy as np
 import soundfile as sf
 from tqdm import tqdm
+import shutil
+
 
 # ───────────────────────── ffmpeg helpers ────────────────────────────────
+# helper: check ffmpeg availability and give a friendly error
+def ensure_ffmpeg() -> None:
+    if shutil.which("ffmpeg") is None:
+        raise FileNotFoundError(
+            "ffmpeg executable not found. Install ffmpeg and ensure it's on your PATH. "
+            "On Windows, you can install via Chocolatey (`choco install ffmpeg`) or "
+            "download from https://ffmpeg.org/download.html. Then re-open your shell."
+        )
+
+
 def run_ffmpeg_extract(
     input_path: Path, output_path: Path, sr: int = 48_000, mono: bool = True
 ) -> None:
+    ensure_ffmpeg()
     if output_path.exists():
         raise FileExistsError(f"Refusing to overwrite existing file {output_path}")
     subprocess.run(
         [
-            "ffmpeg", "-y", "-i", str(input_path),
-            "-ac", "1" if mono else "2",
-            "-ar", str(sr),
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(input_path),
+            "-ac",
+            "1" if mono else "2",
+            "-ar",
+            str(sr),
             str(output_path),
         ],
         check=True,
@@ -47,20 +65,35 @@ def ffmpeg_slice_video(
     codec: str = "libx264",
     scale: str | None = "-1:360",
 ) -> None:
+    ensure_ffmpeg()
     vf = f"scale={scale}" if scale else "null"
     subprocess.run(
         [
-            "ffmpeg", "-y",
-            "-ss", f"{start_sec:.3f}", "-t", f"{duration_sec:.3f}",
-            "-i", str(src),
-            "-vf", vf,
-            "-c:v", codec,
-            "-c:a", "aac", "-ac", "1", "-ar", "48000",
-            "-loglevel", "error",
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{start_sec:.3f}",
+            "-t",
+            f"{duration_sec:.3f}",
+            "-i",
+            str(src),
+            "-vf",
+            vf,
+            "-c:v",
+            codec,
+            "-c:a",
+            "aac",
+            "-ac",
+            "1",
+            "-ar",
+            "48000",
+            "-loglevel",
+            "error",
             str(dst),
         ],
         check=True,
     )
+
 
 # ─────────────────────── onset-detector helper ───────────────────────────
 def detect_onsets(
@@ -76,8 +109,10 @@ def detect_onsets(
         sr=sr,
         hop_length=hop_len,
         backtrack=True,
-        pre_max=20, post_max=20,
-        pre_avg=100, post_avg=100,
+        pre_max=20,
+        post_max=20,
+        pre_avg=100,
+        post_avg=100,
         delta=delta,
         units="samples",
     )
@@ -89,6 +124,7 @@ def detect_onsets(
             filtered.append(s)
             last = s
     return filtered
+
 
 # ───────────────────────── CLI handlers ──────────────────────────────────
 def cmd_extract(args: argparse.Namespace) -> None:
@@ -102,8 +138,8 @@ def cmd_extract(args: argparse.Namespace) -> None:
 
 
 def cmd_slice(args: argparse.Namespace) -> None:
-    in_path  = Path(args.input)
-    out_dir  = Path(args.output_dir)
+    in_path = Path(args.input)
+    out_dir = Path(args.output_dir)
     csv_path = Path(args.csv)
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -118,7 +154,9 @@ def cmd_slice(args: argparse.Namespace) -> None:
     win = int(sr * args.win_ms / 1000)
 
     # spacing between clips
-    gap_ms = args.min_gap_ms if args.min_gap_ms is not None else (args.pre_ms + args.post_ms)
+    gap_ms = (
+        args.min_gap_ms if args.min_gap_ms is not None else (args.pre_ms + args.post_ms)
+    )
     min_gap_sec = gap_ms / 1000
 
     # ── detect peaks / onsets ────────────────────────────────────────────
@@ -128,15 +166,18 @@ def cmd_slice(args: argparse.Namespace) -> None:
         wait_frames = max(3, int(gap_ms / args.hop_ms))
         peaks = librosa.util.peak_pick(
             env_norm,
-            pre_max=3, post_max=3,
-            pre_avg=3, post_avg=3,
+            pre_max=3,
+            post_max=3,
+            pre_avg=3,
+            post_avg=3,
             delta=args.threshold,
             wait=wait_frames,
         )
         sample_peaks = [int(p * hop + win / 2) for p in peaks]
     else:  # onset
         sample_peaks = detect_onsets(
-            y, sr,
+            y,
+            sr,
             hop_len=hop,
             delta=args.delta,
             min_gap_sec=min_gap_sec,
@@ -147,7 +188,7 @@ def cmd_slice(args: argparse.Namespace) -> None:
         return
 
     # ── slice around peaks ───────────────────────────────────────────────
-    pre  = int(args.pre_ms  * sr / 1000)
+    pre = int(args.pre_ms * sr / 1000)
     post = int(args.post_ms * sr / 1000)
 
     csv_rows = []
@@ -156,8 +197,8 @@ def cmd_slice(args: argparse.Namespace) -> None:
     print(f"Slicing {len(sample_peaks)} clips …")
     for idx, p in tqdm(list(enumerate(sample_peaks, 1)), total=len(sample_peaks)):
         start = max(p - pre, 0)
-        end   = min(p + post, len(y))
-        clip  = y[start:end]
+        end = min(p + post, len(y))
+        clip = y[start:end]
 
         clip_duration_sec = (end - start) / sr
 
@@ -182,10 +223,13 @@ def cmd_slice(args: argparse.Namespace) -> None:
     # ── write CSV ────────────────────────────────────────────────────────
     with csv_path.open("w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["clip_id", "peak_sample", "clip_start_sec", "label", "video_id"])
+        writer.writerow(
+            ["clip_id", "peak_sample", "clip_start_sec", "label", "video_id"]
+        )
         writer.writerows(csv_rows)
 
     print(f"✅ {len(csv_rows)} clips + CSV written to {out_dir}")
+
 
 # ───────────────────────── argument parser ───────────────────────────────
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -207,19 +251,33 @@ def build_arg_parser() -> argparse.ArgumentParser:
     slc.add_argument("--csv", required=True)
 
     # window + detection
-    slc.add_argument("--method", choices=["rms", "onset"], default="onset",
-                     help="Detection method (default: onset)")
-    slc.add_argument("--delta", type=float, default=0.2,
-                     help="Spectral-flux onset threshold (lower = more peaks)")
-    slc.add_argument("--threshold", type=float, default=0.35,
-                     help="RMS peak threshold (used only when --method rms)")
-    slc.add_argument("--min_gap_ms", type=float,
-                     help="Minimum spacing between clips in ms "
-                          "(default = pre_ms + post_ms)")
+    slc.add_argument(
+        "--method",
+        choices=["rms", "onset"],
+        default="onset",
+        help="Detection method (default: onset)",
+    )
+    slc.add_argument(
+        "--delta",
+        type=float,
+        default=0.2,
+        help="Spectral-flux onset threshold (lower = more peaks)",
+    )
+    slc.add_argument(
+        "--threshold",
+        type=float,
+        default=0.35,
+        help="RMS peak threshold (used only when --method rms)",
+    )
+    slc.add_argument(
+        "--min_gap_ms",
+        type=float,
+        help="Minimum spacing between clips in ms " "(default = pre_ms + post_ms)",
+    )
     slc.add_argument("--sr", type=int, default=0)
-    slc.add_argument("--hop_ms",  type=float, default=25.0)
-    slc.add_argument("--win_ms",  type=float, default=50.0)
-    slc.add_argument("--pre_ms",  type=float, default=200.0)
+    slc.add_argument("--hop_ms", type=float, default=25.0)
+    slc.add_argument("--win_ms", type=float, default=50.0)
+    slc.add_argument("--pre_ms", type=float, default=200.0)
     slc.add_argument("--post_ms", type=float, default=200.0)
 
     # video
@@ -230,6 +288,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     slc.set_defaults(func=cmd_slice)
     return p
+
 
 # ───────────────────────── entry-point ────────────────────────────────────
 if __name__ == "__main__":
